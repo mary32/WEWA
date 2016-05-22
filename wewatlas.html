@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Western European Wind Atlas</title>
+	<meta charset="utf-8" />
+
+<!-- 	<meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+<!-- 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /> -->
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+
+	<link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.css" />
+
+	<style>
+body {
+/*     height: 100%; */
+/*     padding: 0%; */
+    margin: 1%;
+}
+
+html, body, #map {
+    height: 98%;
+}
+
+/* 
+#map {
+  width: 100%;  
+  max-width: 500px; 
+  height: 400px;
+  width: 600px;
+  margin: 0 auto -60px; */
+/*   padding: 0 0 60px; 
+}*/
+/* 
+		#map {
+			width: 800px;
+			height: 500px;
+		}
+ */
+
+		.info {
+			padding: 6px 8px;
+			font: 14px/16px Arial, Helvetica, sans-serif;
+			background: white;
+			background: rgba(255,255,255,0.8);
+			box-shadow: 0 0 15px rgba(0,0,0,0.2);
+			border-radius: 5px;
+		}
+		.info h4 {
+			margin: 0 0 5px;
+			color: #777;
+		}
+
+		.legend {
+			text-align: left;
+			line-height: 18px;
+			color: #555;
+		}
+		.legend i {
+			width: 18px;
+			height: 18px;
+			float: left;
+			margin-right: 8px;
+			opacity: 0.7;
+		}
+	</style>
+</head>
+<body>
+	<div id="map"></div>
+	<script src="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.js"></script>
+	<script type="text/javascript" src="euro-wind.js"></script>
+	<script type="text/javascript" src="exclusions.js"></script>
+	<script type="text/javascript">
+
+
+
+		var grayscale = L.tileLayer('https://api.mapbox.com/styles/v1/merrysea/cins2xh0g0045sgnfdvmy9q21/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWVycnlzZWEiLCJhIjoiY2luczF5MWVkMTB4aHR2bHkwZHQ2b3htNyJ9.XcdWfI4DRVDhq6YCLb6kSg', {
+    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+    maxZoom: 18,
+}),
+			terrain     = L.tileLayer('https://api.mapbox.com/styles/v1/merrysea/cinuxuzfn0005baniuvxyj88r/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWVycnlzZWEiLCJhIjoiY2luczF5MWVkMTB4aHR2bHkwZHQ2b3htNyJ9.XcdWfI4DRVDhq6YCLb6kSg', {
+    attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+    maxZoom: 18,
+});
+
+		var geojson = L.geoJson(euroData, {
+			style: style,
+			onEachFeature: onEachFeature
+		});
+
+		var exclude = L.geoJson(exclusions, {
+			style: styleEX,
+			onEachFeature: onEachFeature
+		});
+
+		var map = L.map('map',{
+				center: [50.7, 12.9],
+			zoom: 4,
+			layers: [grayscale, geojson]
+			});
+
+		var baseMaps = {
+			"Grayscale": grayscale,
+			"Terrain": terrain
+			};
+
+		var overlayMaps = {
+			"Wind Speed": geojson,
+			"Exclusion Zones": exclude
+			};
+
+		L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+		// control that shows state info on hover
+		var info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info');
+			this.update();
+			return this._div;
+		};
+
+		info.update = function (props) {
+			if (props && props.MEANMEANVA ) {
+				this._div.innerHTML = '<h4>Mean Wind Speed<br/>Toggle for Exclusions Zones<br/>'
+				+'I just made those up</h4>' +  (props ?
+				'<b>' + props.name + '</b><br/>' + props.MEANMEANVA.toPrecision(2) + ' m/s<sup>2</sup>'
+				: 'Hover over a country');
+				}
+			if (props && props.ENGTYPE_1 ) {
+				this._div.innerHTML = '<h4>Exclusion Zones<br/>Toggle for Wind Speed<br/>'
+			  +'I just made those up</h4>' +  (props ?
+				'<b>' + props.NAME_1 + '</b><br/>' + props.ENGTYPE_1
+				: 'Hover over an exclusion zone');
+				}
+		};
+
+		info.addTo(map);
+
+
+		// get color depending on population density value
+		function getColor(d) {
+			return d > 10  ? '#0B486B':
+			       d > 9   ? '#205A70':
+			       d > 8   ? '#366D76':
+			       d > 7   ? '#4C807C':
+			       d > 6   ? '#629281':
+			       d > 5   ? '#77A587':
+			       d > 4   ? '#8DB88D':
+			       d > 3   ? '#A3CA92':
+			       d > 2   ? '#B9DD98':
+			                 '#CFF09E';
+		}
+// from these 2 edge colors:
+// on this website: http://www.perbang.dk/rgbgradient/
+// 			return d > 10  ? '#CFF09E':
+// 			       d > 9   ? '#B9DD98':
+// 			       d > 8   ? '#A3CA92':
+// 			       d > 7   ? '#8DB88D':
+// 			       d > 6   ? '#77A587':
+// 			       d > 5   ? '#629281':
+// 			       d > 4   ? '#4C807C':
+// 			       d > 3   ? '#366D76':
+// 			       d > 2   ? '#205A70':
+// 			                 '#0B486B';
+
+
+		function style(feature) {
+			return {
+				weight: 1,
+				opacity: 1,
+				color: 'white',
+				dashArray: '4',
+				fillOpacity: 0.6,
+				fillColor: getColor(feature.properties.MEANMEANVA)
+			};
+		}
+
+		function styleEX(feature) {
+			return {
+				weight: .6,
+				opacity: 1,
+				color: 'black',
+				dashArray: '1',
+				fillOpacity: 0.6,
+				fillColor: 'black'
+			};
+		}
+
+
+		function highlightFeature(e) {
+			var layer = e.target;
+
+			layer.setStyle({
+				weight: 5,
+				color: '#666',
+				dashArray: '',
+				fillOpacity: 0.7
+			});
+
+			if (!L.Browser.ie && !L.Browser.opera) {
+				layer.bringToFront();
+			}
+
+			info.update(layer.feature.properties);
+		}
+
+		function resetHighlight(e) {
+			if (e.target.feature.properties && e.target.feature.properties.MEANMEANVA) {
+				geojson.resetStyle(e.target);
+				}
+			if (e.target.feature.properties && e.target.feature.properties.ENGTYPE_1) {
+				exclude.resetStyle(e.target);
+				}
+			info.update();
+		}
+
+		function centerFeature(e) {
+// 			map.fitBounds(e.target.getBounds());
+			map.setView(e.latlng);
+
+		}
+
+
+
+		function onEachFeature(feature, layer) {
+			var popupContent;
+			if (feature.properties && feature.properties.MEANMEANVA) {
+				popupContent = "<p>Country: " + feature.properties.name;
+				popupContent = popupContent+ "<br/>Mean (m/s): " + feature.properties.MEANMEANVA.toPrecision(2)
+				               + "</p>";
+				}
+			if (feature.properties && feature.properties.ENGTYPE_1) {
+				popupContent = "<p>" + feature.properties.NAME_1
+				   +"<br/>Exclusion type (made-up): "+ feature.properties.ENGTYPE_1 + "</p>";
+				}
+
+			layer.bindPopup(popupContent);
+			layer.on({
+				popupopen: highlightFeature,
+				popupclose: resetHighlight,
+				click: centerFeature,
+				mouseover: highlightFeature,
+				mouseout: resetHighlight
+			});
+		}
+
+		map.attributionControl.addAttribution('Population data &copy; <a href="http://census.gov/">US Census Bureau</a>');
+
+		var legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+				grades = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+				labels = [],
+				from, to;
+
+			for (var i = 0; i < grades.length; i++) {
+				from = grades[i];
+				to = grades[i + 1];
+
+				labels.push(
+					'<i style="background:' + getColor(from + 1) + '"></i> ' +
+					from + (to ? '&ndash;' + to : '+'));
+			}
+
+			div.innerHTML = labels.join('<br>');
+			return div;
+		};
+
+		legend.addTo(map);
+
+	</script>
+</body>
+</html>
